@@ -20,4 +20,14 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          /home/deployer/scripts/cambio.sh "${{ secrets.SUDO_PASSWORD }}"
+          # Detectar ambiente actual y desplegar en el opuesto
+          CURRENT_ENV=$(curl -s http://localhost | grep -o '"environment":"[^"]*' | cut -d'"' -f4 2>/dev/null || echo "unknown")
+          echo "Ambiente actual detectado: $CURRENT_ENV"
+          
+          if [ "$CURRENT_ENV" = "blue" ]; then
+            echo "🔄 Desplegando en GREEN..."
+            /home/deployer/scripts/switch-to-green.sh "${{ secrets.SUDO_PASSWORD }}"
+          else
+            echo "🔄 Desplegando en BLUE..."
+            /home/deployer/scripts/switch-to-blue.sh "${{ secrets.SUDO_PASSWORD }}"
+          fi
