@@ -50,7 +50,7 @@ docker compose build
 docker compose up -d
 
 # Verificar salud de GREEN
-check_health 3002 "GREEN"
+check_health 3002 "GREEeeeN"
 
 echo "🔀 Cambiando tráfico a GREEN..."
 echo "$PASSWORD" | sudo -S rm -f /etc/nginx/sites-enabled/app_active.conf
