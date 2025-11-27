@@ -3,7 +3,7 @@ name: Deploy Application
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # Permite ejecución manual
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -26,8 +26,8 @@ jobs:
           
           if [ "$CURRENT_ENV" = "blue" ]; then
             echo "🔄 Desplegando en GREEN..."
-            /home/deployer/scripts/switch-to-green.sh "${{ secrets.PASSWORD }}"
+            ~/scripts/switch-to-green.sh "${{ secrets.PASSWORD }}"
           else
             echo "🔄 Desplegando en BLUE..."
-            /home/deployer/scripts/switch-to-blue.sh "${{ secrets.PASSWORD }}"
+            ~/scripts/switch-to-blue.sh "${{ secrets.PASSWORD }}"
           fi
