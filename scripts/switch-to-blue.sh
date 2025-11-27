@@ -52,7 +52,7 @@ docker compose up -d
 # Verificar salud de BLUE
 check_health 3001 "BLUE"
 
-echo "🔀 Cambiando tráfico a BLUE..."
+echo "🔀 Cambiando tráfico a BLUEeeee..."
 echo "$PASSWORD" | sudo -S rm -f /etc/nginx/sites-enabled/app_active.conf
 echo "$PASSWORD" | sudo -S ln -s /etc/nginx/sites-available/app_blue.conf /etc/nginx/sites-enabled/app_active.conf
 echo "$PASSWORD" | sudo -S nginx -t && echo "$PASSWORD" | sudo -S systemctl reload nginx
