@@ -20,8 +20,11 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Detectar ambiente actual usando el endpoint API específico
-          CURRENT_ENV=$(curl -s http://localhost/api/info | grep -o '"environment":"[^"]*' | cut -d'"' -f4 2>/dev/null || echo "unknown")
+          # Detectar ambiente actual (compatible con HTML y JSON)
+          CURRENT_ENV=$(curl -s http://localhost | grep -i -o 'blue environment\|green environment' | head -1 | tr '[:upper:]' '[:lower:]' | cut -d' ' -f1 || echo "unknown")
+          if [ -z "$CURRENT_ENV" ]; then
+              CURRENT_ENV=$(curl -s http://localhost | grep -o '"environment":"[^"]*' | cut -d'"' -f4 2>/dev/null || echo "unknown")
+          fi
           echo "Ambiente actual detectado: $CURRENT_ENV"
           
           if [ "$CURRENT_ENV" = "blue" ]; then
