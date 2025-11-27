@@ -26,8 +26,8 @@ jobs:
           
           if [ "$CURRENT_ENV" = "blue" ]; then
             echo "🔄 Desplegando en GREEN..."
-            /home/deployer/scripts/switch-to-green.sh "${{ secrets.SUDO_PASSWORD }}"
+            /home/deployer/scripts/switch-to-green.sh "${{ secrets.PASSWORD }}"
           else
             echo "🔄 Desplegando en BLUE..."
-            /home/deployer/scripts/switch-to-blue.sh "${{ secrets.SUDO_PASSWORD }}"
+            /home/deployer/scripts/switch-to-blue.sh "${{ secrets.PASSWORD }}"
           fi
