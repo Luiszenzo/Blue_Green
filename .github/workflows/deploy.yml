@@ -20,7 +20,7 @@ jobs:
         username: ${{ secrets.SSH_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          # Detectar ambiente actual usando el endpoint API
+          # Detectar ambiente actual usando el endpoint API específico
           CURRENT_ENV=$(curl -s http://localhost/api/info | grep -o '"environment":"[^"]*' | cut -d'"' -f4 2>/dev/null || echo "unknown")
           echo "Ambiente actual detectado: $CURRENT_ENV"
           
