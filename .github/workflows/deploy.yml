@@ -1,188 +1,21 @@
-const express = require('express');
-const { exec } = require('child_process');
-const app = express();
-const port = process.env.PORT || 3000;
-const ENVIRONMENT = process.env.ENVIRONMENT || 'development';
-const VERSION = process.env.VERSION || '1.0.0';
+name: Deploy
 
-// Middleware para parsear JSON
-app.use(express.json());
+on:
+  push:
+    branches:
+      - main
 
-// Variable para controlar actualizaciones
-let isUpdating = false;
-let lastUpdate = new Date();
-
-app.get('/', (req, res) => {
-    res.json({
-        message: `Bienvenido al ambiente ${ENVIRONMENT}`,
-        environment: ENVIRONMENT,
-        timestamp: new Date().toISOString(),
-        version: VERSION,
-        status: isUpdating ? 'updating' : 'running',
-        lastUpdate: lastUpdate.toISOString(),
-        endpoints: {
-            health: '/health',
-            update: '/update',
-            status: '/status',
-            info: '/api/info'
-        }
-    });
-});
-
-app.get('/health', (req, res) => {
-    res.status(200).json({ 
-        status: 'OK', 
-        environment: ENVIRONMENT,
-        updating: isUpdating,
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Endpoint para forzar actualización de la imagen
-app.post('/update', (req, res) => {
-    if (isUpdating) {
-        return res.status(429).json({
-            status: 'error',
-            message: 'Update already in progress',
-            environment: ENVIRONMENT,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    isUpdating = true;
-    const updateStartTime = new Date();
-    
-    res.json({
-        status: 'update_started',
-        message: 'Docker image update initiated',
-        environment: ENVIRONMENT,
-        startTime: updateStartTime.toISOString()
-    });
-
-    console.log(`🔄 Iniciando actualización de imagen Docker para ${ENVIRONMENT}...`);
-
-    // Comando para reconstruir la imagen Docker
-    const composeFile = ENVIRONMENT === 'blue' ? '/srv/app/blue/docker-compose.yml' : '/srv/app/green/docker-compose.yml';
-    const command = `cd ${ENVIRONMENT === 'blue' ? '/srv/app/blue' : '/srv/app/green'} && docker compose build --no-cache && docker compose up -d`;
-
-    exec(command, (error, stdout, stderr) => {
-        const updateEndTime = new Date();
-        const duration = (updateEndTime - updateStartTime) / 1000;
-        
-        if (error) {
-            console.error('❌ Error en actualización:', error);
-            console.error('Stderr:', stderr);
-        } else {
-            console.log('✅ Actualización completada exitosamente');
-            console.log('Stdout:', stdout);
-            lastUpdate = new Date();
-        }
-
-        isUpdating = false;
-        
-        // Log del resultado
-        console.log(`📊 Update ${error ? 'failed' : 'succeeded'} for ${ENVIRONMENT}`);
-        console.log(`⏱️  Duration: ${duration}s`);
-    });
-});
-
-// Endpoint para verificar el estado de actualización
-app.get('/status', (req, res) => {
-    res.json({
-        environment: ENVIRONMENT,
-        version: VERSION,
-        status: isUpdating ? 'updating' : 'running',
-        lastUpdate: lastUpdate.toISOString(),
-        uptime: process.uptime(),
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Endpoint para actualización automática con Git
-app.post('/update/git', (req, res) => {
-    if (isUpdating) {
-        return res.status(429).json({
-            status: 'error',
-            message: 'Update already in progress',
-            environment: ENVIRONMENT
-        });
-    }
-
-    isUpdating = true;
-    const updateStartTime = new Date();
-
-    res.json({
-        status: 'git_update_started',
-        message: 'Git pull and Docker rebuild initiated',
-        environment: ENVIRONMENT,
-        startTime: updateStartTime.toISOString()
-    });
-
-    console.log('🔄 Iniciando actualización Git + Docker...');
-
-    // Secuencia de comandos: Git pull -> Docker rebuild
-    const commands = [
-        'cd /home/deployer/app && git pull origin main',
-        `cd /srv/app/${ENVIRONMENT} && docker compose build --no-cache && docker compose up -d`
-    ];
-
-    exec(commands.join(' && '), (error, stdout, stderr) => {
-        const updateEndTime = new Date();
-        const duration = (updateEndTime - updateStartTime) / 1000;
-
-        if (error) {
-            console.error('❌ Error en actualización Git:', error);
-        } else {
-            console.log('✅ Actualización Git + Docker completada');
-            lastUpdate = new Date();
-        }
-
-        isUpdating = false;
-        console.log(`📊 Git Update ${error ? 'failed' : 'succeeded'}`);
-        console.log(`⏱️  Duration: ${duration}s`);
-    });
-});
-
-// Endpoint para información del sistema
-app.get('/system/info', (req, res) => {
-    // Obtener información de contenedores
-    exec('docker ps --format "{{.Names}}\\t{{.Status}}\\t{{.Ports}}"', (error, stdout, stderr) => {
-        const containerInfo = error ? 'Error getting container info' : stdout;
-
-        res.json({
-            environment: ENVIRONMENT,
-            version: VERSION,
-            nodeVersion: process.version,
-            platform: process.platform,
-            uptime: process.uptime(),
-            memory: process.memoryUsage(),
-            lastUpdate: lastUpdate.toISOString(),
-            updating: isUpdating,
-            containers: containerInfo.split('\n').filter(line => line.trim()),
-            timestamp: new Date().toISOString()
-        });
-    });
-});
-
-// API info para compatibilidad
-app.get('/api/info', (req, res) => {
-    res.json({
-        message: `Bienvenido al ambiente ${ENVIRONMENT}`,
-        environment: ENVIRONMENT,
-        timestamp: new Date().toISOString(),
-        version: VERSION,
-        updating: isUpdating,
-        lastUpdate: lastUpdate.toISOString()
-    });
-});
-
-app.listen(port, () => {
-    console.log(`🚀 Servidor ejecutándose en puerto ${port}`);
-    console.log(`📍 Ambiente: ${ENVIRONMENT}`);
-    console.log(`🔄 Endpoints de actualización disponibles:`);
-    console.log(`   POST /update       - Reconstruir imagen Docker`);
-    console.log(`   POST /update/git   - Git pull + reconstruir`);
-    console.log(`   GET /status        - Estado del sistema`);
-    console.log(`   GET /system/info   - Información del sistema`);
-    console.log(`❤️  Health: http://localhost:${port}/health`);
-});
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: cd src && npm install
+      - name: Build Docker image
+        run: cd src && docker build -t blue-green-demo .
+      # Add deployment steps here
