@@ -10,12 +10,92 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          
       - name: Install dependencies
         run: cd src && npm install
+        
       - name: Build Docker image
         run: cd src && docker build -t blue-green-demo .
-      # Add deployment steps here
+        
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "🚀 Iniciando despliegue Blue-Green..."
+            
+            # Sincronizar el código nuevo
+            echo "📥 Sincronizando código..."
+            cd ~/app
+            git pull origin main
+            
+            # Detectar ambiente actual
+            echo "🔍 Detectando ambiente actual..."
+            CURRENT_ENV=$(curl -s http://localhost | grep -o '"environment":"[^"]*' | cut -d'"' -f4 2>/dev/null || echo "unknown")
+            echo "🎯 Ambiente actual: $CURRENT_ENV"
+            
+            # Determinar ambiente objetivo
+            if [ "$CURRENT_ENV" = "blue" ]; then
+              TARGET_ENV="green"
+              TARGET_PORT="3002"
+              OPPOSITE_PORT="3001"
+            else
+              TARGET_ENV="blue" 
+              TARGET_PORT="3001"
+              OPPOSITE_PORT="3002"
+            fi
+            
+            echo "🎯 Desplegando en ambiente: $TARGET_ENV"
+            
+            # Construir y desplegar en el ambiente objetivo
+            echo "🐳 Construyendo contenedor $TARGET_ENV..."
+            cd /srv/app/$TARGET_ENV
+            docker compose build --no-cache
+            docker compose up -d
+            
+            # Esperar a que el nuevo ambiente esté saludable
+            echo "⏳ Verificando salud de $TARGET_ENV..."
+            for i in {1..10}; do
+              if curl -s -f http://localhost:$TARGET_PORT/health > /dev/null 2>&1; then
+                echo "✅ $TARGET_ENV está saludable"
+                break
+              fi
+              echo "⏰ Intento $i/10 - $TARGET_ENV no responde, esperando..."
+              sleep 5
+            done
+            
+            # Cambiar el tráfico de Nginx
+            echo "🔀 Cambiando tráfico a $TARGET_ENV..."
+            echo "${{ secrets.PASSWORD }}" | sudo -S rm -f /etc/nginx/sites-enabled/app_active.conf
+            echo "${{ secrets.PASSWORD }}" | sudo -S ln -s /etc/nginx/sites-available/app_${TARGET_ENV}.conf /etc/nginx/sites-enabled/app_active.conf
+            echo "${{ secrets.PASSWORD }}" | sudo -S systemctl daemon-reload
+            echo "${{ secrets.PASSWORD }}" | sudo -S nginx -t && echo "${{ secrets.PASSWORD }}" | sudo -S systemctl reload nginx
+            
+            # Verificación final
+            echo "🎯 Verificando despliegue..."
+            sleep 8
+            FINAL_ENV=$(curl -s http://localhost | grep -o '"environment":"[^"]*' | cut -d'"' -f4)
+            echo "🎉 Despliegue completado. Ambiente activo: $FINAL_ENV"
+            
+            # Health check final
+            echo "❤️  Realizando health check final..."
+            HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/health)
+            if [ "$HEALTH_STATUS" = "200" ]; then
+              echo "✅ Health check: APLICACIÓN SALUDABLE"
+            else
+              echo "❌ Health check: APLICACIÓN NO RESPONDE (Status: $HEALTH_STATUS)"
+              exit 1
+            fi
+            
+            # Estado de los contenedores
+            echo "📊 Estado final de contenedores:"
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            
+            echo "🏁 Despliegue blue-green completado exitosamente!"
